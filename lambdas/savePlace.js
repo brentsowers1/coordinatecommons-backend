@@ -30,34 +30,36 @@ exports.handler = (event, context, callback) => {
   }
   
   getPlacesVisited(userId, requestBody.placeType).then((data) => {
+    const visited = requestBody.visited === true;
+    const placeId = requestBody.placeId;
     if (!data || !data.Item || !data.Item.UserId) {
-      if (!requestBody.visited) {
+      if (!visited) {
         console.log('No document, but the request is to not visit the place, so nothing to do');
-        successResponse(username, callback);
+        successResponse(username, placeId, visited, callback);
       } else {
         console.log('No document exists, writing a new one');
-        writeNewPlacesVisitedDocument(userId, requestBody.placeType, requestBody.placeId).then((data) => {
+        writeNewPlacesVisitedDocument(userId, requestBody.placeType, placeId).then((data) => {
           console.log('Wrote new document');
-          successResponse(username, callback);
+          successResponse(username, placeId, visited, callback);
         }).catch((err) => {
           console.error(err);
           errorResponse('Error writing new document', context.awsRequestId, callback);
         });
       }
     } else {
-      const placeInDocument = data.Item.PlacesVisited.find(pv => pv.Id === requestBody.placeId);
-      if ( (requestBody.visited && placeInDocument) || (!requestBody.visited && !placeInDocument)) {
+      const placeInDocument = data.Item.PlacesVisited.find(pv => pv.Id === placeId);
+      if ( (visited && placeInDocument) || (!visited && !placeInDocument)) {
         console.log('Didn\'t need to write document');
-        successResponse(username, callback);
+        successResponse(username, placeId, visited, callback);
       } else {
-        if (requestBody.visited) {
-          data.Item.PlacesVisited.push({Id: requestBody.placeId});
+        if (visited) {
+          data.Item.PlacesVisited.push({Id: placeId});
         } else {
-          data.Item.PlacesVisited = data.Item.PlacesVisited.filter(pv => pv.Id !== requestBody.placeId);
+          data.Item.PlacesVisited = data.Item.PlacesVisited.filter(pv => pv.Id !== placeId);
         }
         updatePlacesVisitedDocument(data.Item).then((rsp) =>{
           console.log('Successfuly updated document');
-          successResponse(username, callback);
+          successResponse(username, placeId, visited, callback);
         }).catch((err) => {
           console.error(err);
           errorResponse('Error updating document', context.awsRequestId, callback);
@@ -70,12 +72,14 @@ exports.handler = (event, context, callback) => {
   });
 };
 
-const successResponse = (username, callback) => {
+const successResponse = (username, placeId, visited, callback) => {
   // do the actual saving
   callback(null, {
     statusCode: 200,
     body: JSON.stringify({
-      username: username
+      username,
+      placeId,
+      visited
     }),
     headers: {
       'Access-Control-Allow-Origin': '*',
