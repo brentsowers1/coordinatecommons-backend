@@ -3,7 +3,13 @@ const AWS = require('aws-sdk');
 const ddb = new AWS.DynamoDB.DocumentClient();
 
 exports.handler = (event, context, callback) => {
-  const userId = event.requestContext.authorizer.claims['sub'];
+  const rCtx = event.requestContext;
+  const userId = (rCtx.authorizer && rCtx.authorizer.claims && rCtx.authorizer.claims['sub']) ? 
+    rCtx.authorizer.claims['sub'] : 
+    event.queryStringParameters.sub;
+  if (!userId) {
+    errorResponse('No sub provided', context.awsRequestId, callback);
+  }
   const placeType = event.queryStringParameters.placeType;
   getPlacesVisited(userId, placeType).then((data) => {
     if (data && data.Item && data.Item.UserId) {
